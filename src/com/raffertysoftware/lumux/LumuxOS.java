@@ -13,26 +13,19 @@ public class LumuxOS extends JFrame implements Runnable {
 
     public int width, height, pWidth, pHeight;
 
-    private long fpsTimer;
-    public static int fps = 0;
-    private int frames = 0;
-    public BufferStrategy bs;
-
     public GameEngine ge;
     public Input input;
 
     private boolean initRender = false;
     private GraphicsEngine gfxCanvas;
 
-    public static int REFRESH_RATE = 60;
     private Thread thread;
     public LumuxOS() {
         System.setProperty("sun.java2d.opengl", "true");
+        System.setProperty("sun.java2d.dpiaware", "false");
         System.out.println("OpenGL Enabled: " + System.getProperty("sun.java2d.opengl"));
         this.width = 960;
         this.height = 540;
-
-        this.fpsTimer = System.currentTimeMillis();
 
         new Textures();
         this.ge = new GameEngine(this);
@@ -81,14 +74,10 @@ public class LumuxOS extends JFrame implements Runnable {
         final double ns = 50000000.0;
         long rLastTime = System.nanoTime();
 
-        long lastTimeRender = System.nanoTime();
-        double deltaRender = 0.0;
-        long rLastTimeRender = System.nanoTime();
-
         System.out.println("Running LumuxOS...");
         //recheckHz();
         while (this.running) {
-            double nsTick = 1000000000.0 / REFRESH_RATE;
+            double nsTick = 1000000000.0 / 20.0; //tickrate
 
             final long now = System.nanoTime();
             delta += (now - lastTime) / ns;
@@ -105,34 +94,21 @@ public class LumuxOS extends JFrame implements Runnable {
             this.width = this.getWidth();
             this.height = this.getHeight();
 
-            final long nowRender = System.nanoTime();
-            deltaRender += (nowRender - lastTimeRender) / nsTick;
-            lastTimeRender = nowRender;
-            if (deltaRender >= 1.0) {
-                if (this.pWidth != this.width || this.pHeight != this.height) {
-                    this.drawCanvas = false;
-                    this.ge.onResize(this.pWidth, this.pHeight, this.width, this.height);
-                    //recheckHz();
-                    this.pWidth = this.width;
-                    this.pHeight = this.height;
-                }
-                if(this.drawCanvas) {
-                    if(!initRender) {
-                        this.ge.onInitializeGFX();
-                        initRender = true;
-
-                    }
-                    gfxCanvas.repaint();
-                }
-                this.frames++;
-                if (System.currentTimeMillis() - this.fpsTimer >= 1000L) {
-                    this.fps = this.frames;
-                    this.frames = 0;
-                    this.fpsTimer += 1000L;
-                }
-                deltaRender--;
+            if (this.pWidth != this.width || this.pHeight != this.height) {
+                this.drawCanvas = false;
+                this.ge.onResize(this.pWidth, this.pHeight, this.width, this.height);
+                //recheckHz();
+                this.pWidth = this.width;
+                this.pHeight = this.height;
             }
-            rLastTimeRender = nowRender;
+            if(this.drawCanvas) {
+                if(!initRender) {
+                    this.ge.onInitializeGFX();
+                    initRender = true;
+
+                }
+            }
+            gfxCanvas.repaint();
         }
     }
 

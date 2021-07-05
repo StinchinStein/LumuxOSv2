@@ -9,7 +9,9 @@ import java.io.IOException;
 
 public class Textures
 {
-    public static Image background;
+    public static BufferedImage background;
+
+    public static BufferedImage iconClose, iconMaximize, iconMinimize;
 
     public Textures() {
         loadTextures();
@@ -17,6 +19,9 @@ public class Textures
 
     public static void loadTextures() {
         Textures.background = loadTexture("bg.jpg");
+        Textures.iconClose = loadTexture("icon_close.png");
+        Textures.iconMaximize = loadTexture("theme/dark/icon_minimize.png");
+        Textures.iconMinimize = loadTexture("theme/dark/icon_maximize.png");
     }
 
     public static void loadIcons() {
@@ -29,14 +34,15 @@ public class Textures
     }
 
     public static Image loadGIF(final String fn) {
-        return new ImageIcon(Textures.class.getClassLoader().getResource(fn)).getImage();
+        return new ImageIcon(LumuxOS.class.getClassLoader().getResource(fn)).getImage();
     }
 
     public static BufferedImage loadTexture(final String str) {
         try {
-            return toCompatibleImage(ImageIO.read(Textures.class.getClassLoader().getResourceAsStream(str)));
+            return toCompatibleImage(ImageIO.read(LumuxOS.class.getClassLoader().getResourceAsStream(str)));
         }
         catch (Exception e) {
+            e.printStackTrace();
             try {
                 return toCompatibleImage(ImageIO.read(new File(str)));
             } catch (IOException e1) {

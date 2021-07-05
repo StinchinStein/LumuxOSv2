@@ -1,13 +1,22 @@
 package com.raffertysoftware.lumux;
 
+import sun.audio.AudioStream;
+
+import javax.sound.sampled.AudioInputStream;
+import javax.sound.sampled.AudioSystem;
+import javax.sound.sampled.Clip;
+import javax.sound.sampled.FloatControl;
 import java.awt.*;
 import java.awt.event.KeyEvent;
+import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.io.InputStream;
 import java.sql.Array;
 import java.util.ArrayList;
 
 public class GameEngine {
 
+    public int tickCount = 0;
     private LumuxOS os;
     private Graphics2D g;
     public static Font font;
@@ -20,14 +29,18 @@ public class GameEngine {
     public boolean alreadyDragging = false;
     public boolean alreadyResizing = false;
     public double renderDelta;
+
+    //Sounds
+    public static Clip MOUSE_CLICK_ON, MOUSE_CLICK_OFF;
+
     public GameEngine(LumuxOS os) {
         this.os = os;
     }
 
     public void onInitializeGFX() {
-        ((Graphics2D) this.getLumux().getCanvas().getGraphics()).setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
-        ((Graphics2D) this.getLumux().getCanvas().getGraphics()).setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
-        ((Graphics2D) this.getLumux().getCanvas().getGraphics()).setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+        MOUSE_CLICK_ON = loadSound("mouse_click_on.wav");
+        MOUSE_CLICK_OFF = loadSound("mouse_click_off.wav");
+
         InputStream is = LumuxOS.class.getClassLoader().getResourceAsStream("ARLRDBD.TTF");
         try {
             this.font = Font.createFont(Font.TRUETYPE_FONT, is);
@@ -39,6 +52,7 @@ public class GameEngine {
 
     public void onInitializeOS() {
         this.windows.add(new WindowFrame(this, 20, 20, 420, 275));
+        this.windows.add(new WindowFrame(this, this.getLumux().width - 450, 20, 420, 275));
     }
 
     //Called when the game window is resized.
@@ -46,28 +60,51 @@ public class GameEngine {
     }
 
     public void tick(double dt) {
+        tickCount++;
         for (int i = this.windows.size() - 1; i >= 0; --i) {
             final WindowFrame w = this.windows.get(i);
-            w.tick();
+            w.update();
         }
         this.getLumux().getInput().update();
     }
 
     public void render() {
         if(!gfxInitialized) return;
+
+        g.setRenderingHint(RenderingHints.KEY_FRACTIONALMETRICS, RenderingHints.VALUE_FRACTIONALMETRICS_ON);
+        g.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        g.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+
         currentCursor = Cursor.DEFAULT_CURSOR;
+
+        if (this.getLumux().getInput().isButtonDown(1) || this.getLumux().getInput().isButtonDown(3)) {
+            playSound(GameEngine.MOUSE_CLICK_ON, 0.2f);
+        }
+        if (this.getLumux().getInput().isButtonUp(1) || this.getLumux().getInput().isButtonUp(3)) {
+            playSound(GameEngine.MOUSE_CLICK_OFF, 0.2f);
+        }
 
         if (!this.getLumux().getInput().isButton(1)) {
             this.alreadyDragging = false;
             this.alreadyResizing = false;
         }
 
-        g.clearRect(0, 0, getLumux().width, getLumux().height);
         g.setFont(GameEngine.font.deriveFont(20.0f));
 
         g.drawImage(Textures.background, 0, 0, getLumux().width, getLumux().height, null);
 
         g.setStroke(new BasicStroke(2.0f));
+        //select window
+        for (int i = 0; i < this.windows.size(); ++i) {
+            WindowFrame w = this.windows.get(i);
+            if (this.getLumux().getInput().isButtonDown(1)/* && !w.minimized*/ && this.mouseInWindow(i) && !this.mouseInWindow(0)) {
+                WindowFrame tmpW = w;
+                this.windows.remove(i);
+                this.windows.add(0, w);
+            }
+        }
+
+        //render window
         for (int i = this.windows.size() - 1; i >= 0; --i) {
             WindowFrame w = this.windows.get(i);
             w.setIndex(i);
@@ -76,10 +113,10 @@ public class GameEngine {
 
         //DEBUG GUI
         g.setColor(Color.WHITE);
-        g.drawString("Frame Rate: " + getLumux().fps, 22, 62);
-        this.getLumux().getGameEngine().setCursor(currentCursor);
-    }
+        g.drawString("Frame Rate: " + getLumux().getCanvas().getFPS(), 5, 22);
 
+        this.getLumux().getCanvas().setCursor(new Cursor(currentCursor));
+    }
 
     public boolean mouseInWindow(final int index) {
         final WindowFrame w = this.windows.get(index);
@@ -127,16 +164,66 @@ public class GameEngine {
         int mouseY = this.getLumux().getInput().getMouseY();
         return mouseX >= x && mouseY >= y && mouseX <= x + w && mouseY <= y + h;
     }
-    public void keyPressed(KeyEvent e) {
 
-    }
-    public void keyReleased(KeyEvent e) {
-
-    }
-    public void keyTyped(KeyEvent e) {
-
+    public void keyPressed(final KeyEvent e) {
+        if (this.windows.size() > 0) {
+            this.windows.get(0).keyPressed(e);
+        }
     }
 
+    public void keyReleased(final KeyEvent e) {
+        if (this.windows.size() > 0) {
+            this.windows.get(0).keyReleased(e);
+        }
+    }
+
+    public void keyTyped(final KeyEvent e) {
+        if (this.windows.size() > 0) {
+            this.windows.get(0).keyTyped(e);
+        }
+    }
+
+    //SOUNDS
+    public Clip loadSound(String snd) {
+        try {
+            AudioInputStream audioStream = AudioSystem.getAudioInputStream(LumuxOS.class.getClassLoader().getResourceAsStream(snd));
+            Clip c = AudioSystem.getClip();
+            c.open(audioStream);
+            return c;
+        }
+        catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+
+    public static void playSound(Clip sndClip, float vol) {
+        if(sndClip == null) {
+            System.out.println("Sound null");
+            return;
+        }
+        try {
+            sndClip.setFramePosition(0);
+            final FloatControl gainControl = (FloatControl)sndClip.getControl(FloatControl.Type.MASTER_GAIN);
+            gainControl.setValue(20.0f * (float)Math.log10(vol));
+            sndClip.start();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void playSound(Clip sndClip) {
+        playSound(sndClip, 1.0f);
+    }
+
+    public void cText(final String t, final int x, final int y) {
+        this.cText(this.g, t, x, y);
+    }
+
+    public void cText(final Graphics2D g, final String t, final int x, final int y) {
+        g.drawString(t, x - g.getFontMetrics().stringWidth(t) / 2, y);
+    }
 
     public LumuxOS getLumux() {
         return os;

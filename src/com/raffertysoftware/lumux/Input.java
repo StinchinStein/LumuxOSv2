@@ -197,4 +197,15 @@ public class Input implements KeyListener, MouseListener, MouseMotionListener, M
 		//this.buttonsLast[i] = false;
 		
 	}
+
+    public int getButton() {
+        int selButton = -1;
+        for(int i = 0; i < this.buttons.length; i++) {
+            if(this.buttons[i]) {
+                selButton = i;
+            }
+        }
+
+        return selButton;
+    }
 }
